@@ -401,6 +401,16 @@ body.nav-open{overflow:hidden}
 .form-alt{grid-column:1/-1;margin:0;font-size:.92rem;color:var(--muted);text-align:center}
 .ghl-live{background:#fff;border-radius:var(--radius);padding:.5rem}
 .cta-form .ghl-live{box-shadow:var(--shadow-lg)}
+/* GoHighLevel embed. The pasted iframe carries height:100%, which collapses to the
+   browser default (~150px) inside an auto-height parent until GHL's form_embed.js
+   measures the form and sets an inline height. min-height holds the slot open at the
+   embed's own data-height so the form never loads clipped; the script's inline height
+   still wins whenever the form is taller, so adding fields just grows it. */
+.ghl-live{min-height:432px}
+.ghl-live iframe{display:block;width:100%;min-height:432px;border:none;border-radius:4px}
+/* One shared form under the audience tabs, used while contractor and homeowner point
+   at the same GHL form (see branching_form in build.py). */
+.aud-shared-form{margin-top:.25rem}
 
 /* ----------------------------------------------------------- crumbs ----- */
 .crumbs{background:var(--grey-2);border-bottom:1px solid var(--line);font-size:.88rem}
