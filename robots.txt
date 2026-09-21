@@ -1,3 +1,4 @@
-# Staging build — ALLOW_INDEXING is False in data.py.
 User-agent: *
-Disallow: /
+Allow: /
+
+Sitemap: https://www.barrieinsulationsystems.com/sitemap.xml
