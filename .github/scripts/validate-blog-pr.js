@@ -124,6 +124,29 @@ for (const postPath of newPosts) {
   // unchanged that would fail every Barrie post forever. When analytics is added,
   // add the check back here AND to the post template in the same change.
   if (!/application\/ld\+json/i.test(html)) problems.push(`${postPath}: missing JSON-LD structured data.`);
+  // The lead must be MOVED into post-lead, not copied. blog-writer's draft opens
+  // with the 40-55 word direct answer; site-publisher lifts that paragraph into
+  // <p class="post-lead">, and it must not also appear as a body paragraph.
+  //
+  // The first post on this site shipped with its opening paragraph rendered twice
+  // (2026-09-29). Nothing structural was wrong, so nothing failed, and auto-merge
+  // published it in about a minute. A repeated paragraph is invisible to every
+  // other check here, which is exactly why it gets its own.
+  const leadMatch = html.match(/<p class="post-lead">([\s\S]*?)<\/p>/i);
+  if (leadMatch) {
+    const norm = (t) => t.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/gi, " ")
+                         .replace(/\s+/g, " ").trim().toLowerCase();
+    const lead = norm(leadMatch[1]);
+    if (lead.length > 40) {
+      const bodyParas = [...html.matchAll(/<p(?![^>]*class="post-(lead|meta|outro)")[^>]*>([\s\S]*?)<\/p>/gi)]
+        .map((m) => norm(m[2]));
+      if (bodyParas.some((p) => p === lead)) {
+        problems.push(`${postPath}: the post-lead paragraph is ALSO rendered in the body. `
+          + "The lead is moved into post-lead, not copied — remove it from the body.");
+      }
+    }
+  }
+
   if (/\[NEEDS SOURCE/i.test(html)) problems.push(`${postPath}: still contains a [NEEDS SOURCE] marker — fact-checker did not finish.`);
   if (/href="\.\.\//.test(html)) notes.push(`${postPath}: contains a relative "../" href — confirm asset paths are root-relative.`);
 }
