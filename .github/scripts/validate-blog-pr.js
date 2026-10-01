@@ -1,0 +1,172 @@
+#!/usr/bin/env node
+"use strict";
+
+// validate-blog-pr.js — companion to auto-publish.yml. INSTALL in the SITE repo
+// at .github/scripts/validate-blog-pr.js.
+//
+// Validates a pipeline-generated blog PR against Barrie Insulation's hard limits before the
+// workflow is allowed to auto-merge it. Exits 0 (pass) or 1 (fail); prints a
+// human-readable report either way. Run as:
+//   node .github/scripts/validate-blog-pr.js <baseSha> <headSha>
+
+const { execFileSync } = require("child_process");
+const fs = require("fs");
+
+const [, , baseSha, headSha] = process.argv;
+if (!baseSha || !headSha) {
+  console.error("Usage: validate-blog-pr.js <baseSha> <headSha>");
+  process.exit(1);
+}
+
+function git(args) {
+  return execFileSync("git", args, { encoding: "utf8" }).trim();
+}
+
+const problems = [];
+const notes = [];
+
+// 1. Which files changed, and how.
+const raw = git(["diff", "--name-status", `${baseSha}`, `${headSha}`]);
+const changes = raw
+  .split("\n")
+  .filter(Boolean)
+  .map((line) => {
+    const [status, ...rest] = line.split(/\t/);
+    return { status: status[0], path: rest.join("\t") };
+  });
+
+// 2. Every changed path must be one of the allowed shapes.
+const newPostRe = /^blog\/[a-z0-9-]+\/index\.html$/;
+const allowedModify = new Set(["blog/index.html", "sitemap.xml"]);
+// Barrie has ONE cache-busted stylesheet, /static/style.css?v=<hash>, and no
+// separate blog-post.css. There is no first-time CSS file for a post to add, and
+// style.css itself is site-wide — a blog PR has no business touching it.
+const allowedAddOther = new Set();
+
+// Blog images the post brings with it. DMT keeps a 54-photo client library in
+// the PIPELINE repo that is not hosted anywhere, so using one means adding the
+// file here in the same PR. Until 2026-09-14 this validator rejected that
+// outright, which meant the library could never appear in a published post --
+// unnoticed for two weeks, because the image-designer was also reading the
+// library from the wrong path and seeing it as empty.
+//
+// ADDITIONS ONLY, and only real image files. An M on an existing image stays
+// refused: a blog PR has no business rewriting a photo another post uses.
+const newImageRe = /^assets\/img\/(thumbs\/)?[A-Za-z0-9][A-Za-z0-9._-]*\.(jpe?g|png|webp)$/;
+const MAX_NEW_IMAGES = 4;
+const newImages = [];
+
+const newPosts = [];
+// Existing posts modified ONLY to wire prev/next nav. Added 2026-09-03, ported
+// from A&R's validator, which already had it. Without this the validator
+// rejected the pipeline's own documented behaviour -- site-publisher.md tells the
+// run to wire the previous post's nav-next, which arrives as status M while the
+// rule below demanded status A.
+const navEdits = [];
+for (const c of changes) {
+  if (newPostRe.test(c.path)) {
+    if (c.status === "A") newPosts.push(c.path);
+    else if (c.status === "M") navEdits.push(c.path);
+    else problems.push(`Blog post ${c.path} has disallowed status ${c.status}.`);
+  } else if (allowedModify.has(c.path)) {
+    if (c.status !== "M" && c.status !== "A") problems.push(`${c.path} changed with disallowed status ${c.status}.`);
+  } else if (allowedAddOther.has(c.path)) {
+    if (c.status !== "A") problems.push(`${c.path} must be ADDED once, not modified (status ${c.status}).`);
+  } else if (newImageRe.test(c.path)) {
+    if (c.status !== "A") problems.push(`${c.path}: a blog PR may ADD a new image but never modify or delete an existing one (status ${c.status}).`);
+    else newImages.push(c.path);
+  } else {
+    problems.push(`Disallowed file changed: ${c.path} (${c.status}). A blog PR may only add /blog/{slug}/index.html and new assets/img/ photos, edit blog/index.html + sitemap.xml, and wire ONE previous post's nav.`);
+  }
+}
+
+if (newImages.length > MAX_NEW_IMAGES) problems.push(`${newImages.length} new images in one blog PR (max ${MAX_NEW_IMAGES}): ${newImages.join(", ")}. A post needs a hero and a section image, not a photo dump.`);
+if (newPosts.length === 0) {
+  problems.push("No new /blog/{slug}/index.html was added — nothing to publish.");
+} else if (newPosts.length > 1) {
+  problems.push(`More than one new post in a single PR (${newPosts.join(", ")}). One post per PR.`);
+}
+if (navEdits.length > 1) {
+  problems.push(`More than one existing post modified (${navEdits.join(", ")}); only the immediately-previous post nav may be wired.`);
+}
+
+// A modified existing post may ONLY have changed its prev/next nav. The allowance
+// is deliberately narrow: it lets the pipeline do the one edit it needs without
+// opening the door to quietly editing published copy.
+for (const p of navEdits) {
+  const diff = git(["diff", baseSha, headSha, "--", p]);
+  const changedLines = diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l));
+  const offending = changedLines.filter((l) => !/nav-next|nav-prev|post-nav|Newest post/.test(l));
+  if (offending.length) {
+    problems.push(`${p}: a previous post may only change its prev/next nav, but other lines changed: ${offending.slice(0, 4).join(" | ")}`);
+  }
+}
+
+// 3. Validate the new post's HTML content.
+for (const postPath of newPosts) {
+  let html = "";
+  try {
+    html = fs.readFileSync(postPath, "utf8");
+  } catch (err) {
+    problems.push(`Could not read ${postPath}: ${err.message}`);
+    continue;
+  }
+
+  const h1Count = (html.match(/<h1[\s>]/gi) || []).length;
+  if (h1Count !== 1) problems.push(`${postPath}: expected exactly one <h1>, found ${h1Count}.`);
+
+  if (!/<title>[^<]+<\/title>/i.test(html)) problems.push(`${postPath}: missing <title>.`);
+  if (!/<meta\s+name="description"\s+content="[^"]+"/i.test(html)) problems.push(`${postPath}: missing meta description.`);
+  if (!/<link\s+rel="canonical"/i.test(html)) problems.push(`${postPath}: missing canonical link.`);
+  // NO analytics check here, deliberately. Barrie Insulation has no GA4, no GTM
+  // and no pixel of any kind as of 2026-09-29 — nothing is being measured on the
+  // site at all. DMT's validator requires its GA4 id on every post; carried over
+  // unchanged that would fail every Barrie post forever. When analytics is added,
+  // add the check back here AND to the post template in the same change.
+  if (!/application\/ld\+json/i.test(html)) problems.push(`${postPath}: missing JSON-LD structured data.`);
+  // The lead must be MOVED into post-lead, not copied. blog-writer's draft opens
+  // with the 40-55 word direct answer; site-publisher lifts that paragraph into
+  // <p class="post-lead">, and it must not also appear as a body paragraph.
+  //
+  // The first post on this site shipped with its opening paragraph rendered twice
+  // (2026-09-29). Nothing structural was wrong, so nothing failed, and auto-merge
+  // published it in about a minute. A repeated paragraph is invisible to every
+  // other check here, which is exactly why it gets its own.
+  const leadMatch = html.match(/<p class="post-lead">([\s\S]*?)<\/p>/i);
+  if (leadMatch) {
+    const norm = (t) => t.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/gi, " ")
+                         .replace(/\s+/g, " ").trim().toLowerCase();
+    const lead = norm(leadMatch[1]);
+    if (lead.length > 40) {
+      const bodyParas = [...html.matchAll(/<p(?![^>]*class="post-(lead|meta|outro)")[^>]*>([\s\S]*?)<\/p>/gi)]
+        .map((m) => norm(m[2]));
+      if (bodyParas.some((p) => p === lead)) {
+        problems.push(`${postPath}: the post-lead paragraph is ALSO rendered in the body. `
+          + "The lead is moved into post-lead, not copied — remove it from the body.");
+      }
+    }
+  }
+
+  if (/\[NEEDS SOURCE/i.test(html)) problems.push(`${postPath}: still contains a [NEEDS SOURCE] marker — fact-checker did not finish.`);
+  if (/href="\.\.\//.test(html)) notes.push(`${postPath}: contains a relative "../" href — confirm asset paths are root-relative.`);
+}
+
+// 4. Report.
+console.log(`Changed files (${changes.length}):`);
+for (const c of changes) console.log(`  ${c.status}  ${c.path}`);
+console.log("");
+
+if (notes.length) {
+  console.log("Notes:");
+  for (const n of notes) console.log(`  • ${n}`);
+  console.log("");
+}
+
+if (problems.length) {
+  console.log(`VALIDATION FAILED — ${problems.length} problem(s):`);
+  for (const p of problems) console.log(`  ✗ ${p}`);
+  process.exit(1);
+}
+
+console.log("VALIDATION PASSED — post is within the hard limits and has required SEO elements.");
+process.exit(0);
