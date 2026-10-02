@@ -1004,12 +1004,25 @@ body.nav-open{overflow:hidden}
 .ff-label{display:block}
 .req{color:var(--red);text-decoration:none;border:0;font-weight:700}
 
-/* ---------- /sitemap/ : the full page index ---------- */
-/* Single column, bulleted, child pages nested one level in. */
-.sitemap-list,.sitemap-list ul{list-style:disc}
-.sitemap-list{padding-left:1.35rem;margin:1.5rem 0 0}
-.sitemap-list ul{padding-left:1.6rem;margin:.45rem 0 .6rem}
-.sitemap-list li{margin:0 0 .45rem;font-size:.95rem;line-height:1.5}
-.sitemap-list li::marker{color:var(--red)}
-.sitemap-list a{color:var(--navy);text-decoration:none}
-.sitemap-list a:hover{text-decoration:underline}
+/* ------------------------------------------------------------------ video ---
+   Clips from the 2026 in-person shoot. .vloop is a moving photograph in the
+   flow of a page; .hero-video sits behind the hero copy, over the hero photo,
+   which stays visible as poster and fallback. Both keep their poster frame when
+   the visitor prefers reduced motion (main.js never loads the file then). */
+.vloop{position:relative;margin:0;border-radius:var(--radius);overflow:hidden;
+  background:var(--ink-10,#dfe3e6);box-shadow:var(--shadow-lg)}
+.vloop-v{display:block;width:100%;aspect-ratio:var(--ratio,16/9);object-fit:cover;
+  background:var(--ink-10,#dfe3e6)}
+.vloop-cap{padding:.6rem .9rem;font-size:.9rem;color:var(--muted);background:var(--surface,#fff)}
+.vloop.is-wide{grid-column:1/-1}
+
+.hero.has-video{position:relative;overflow:hidden}
+.hero-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  z-index:0;pointer-events:none}
+/* the shade and the copy must stay above the clip */
+.hero.has-video .hero-shade{z-index:1}
+.hero.has-video .hero-inner{position:relative;z-index:2}
+
+@media (prefers-reduced-motion:reduce){
+  .vloop-v,.hero-video{animation:none}
+}

@@ -296,3 +296,64 @@
   var hash = (location.hash || "").replace("#", "");
   if (tabs.some(function (t) { return t.dataset.aud === hash; })) select(hash, false);
 })();
+
+/* ---------------------------------------------------------------- video ---
+   Clips from the 2026 shoot are silent, looping and decorative-to-the-page.
+   Nothing is fetched up front: each <video> carries its file in data-src and
+   only gets a real src once it is close to the viewport, so a visitor who never
+   scrolls past the hero downloads no video at all. Out of view they pause, to
+   spare battery on phones. Anyone who prefers reduced motion keeps the poster
+   frame and never loads a clip. */
+(function () {
+  var vids = [].slice.call(document.querySelectorAll("video[data-src]"));
+  if (!vids.length) return;
+
+  var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (still && still.matches) return;           /* poster only — never load */
+
+  function load(v) {
+    if (v.dataset.loaded) return;
+    v.dataset.loaded = "1";
+    v.src = v.dataset.src;
+    var p = v.play();
+    if (p && p.catch) p.catch(function () { /* autoplay refused — poster stays */ });
+  }
+
+  if (!("IntersectionObserver" in window)) {      /* old browser: poster only */
+    return;
+  }
+
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      var v = e.target;
+      if (e.isIntersecting) {
+        load(v);
+        if (v.dataset.loaded && v.paused) {
+          var p = v.play();
+          if (p && p.catch) p.catch(function () {});
+        }
+      } else if (v.dataset.loaded && !v.paused) {
+        v.pause();
+      }
+    });
+  }, { rootMargin: "200px 0px" });
+
+  vids.forEach(function (v) { io.observe(v); });
+
+  /* A tab opened in the background reports nothing as intersecting and Chrome
+     suspends muted video-only playback to save power, so a clip can sit unloaded
+     and paused until the page is actually looked at. Re-check on the way back. */
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible") return;
+    vids.forEach(function (v) {
+      var r = v.getBoundingClientRect();
+      var near = r.bottom > -200 && r.top < (window.innerHeight || 0) + 200;
+      if (!near) return;
+      load(v);
+      if (v.paused) {
+        var p = v.play();
+        if (p && p.catch) p.catch(function () {});
+      }
+    });
+  });
+})();
