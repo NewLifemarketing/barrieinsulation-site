@@ -1026,3 +1026,13 @@ body.nav-open{overflow:hidden}
 @media (prefers-reduced-motion:reduce){
   .vloop-v,.hero-video{animation:none}
 }
+
+/* Prev/next post navigation — next (newer) left, prev (older) right.
+   Same shape the other sites in this group use, in Barrie's own tokens so it
+   cannot drift from the palette. The disabled state is a span, not a dead
+   link, so the ends of the run are not clickable. */
+.post-nav{display:flex;justify-content:space-between;align-items:stretch;gap:1rem;margin:2.5rem 0 0;border-top:1px solid var(--line,#E1E4E9);padding:1.5rem 0}
+.post-nav a,.post-nav span{display:inline-flex;align-items:center;gap:.4rem;max-width:48%;padding:.65rem .95rem;border:1px solid var(--red,#9F1515);border-radius:6px;color:var(--red,#9F1515);text-decoration:none;font-weight:600;font-size:.9rem;line-height:1.25}
+.post-nav a:hover{background:var(--red,#9F1515);color:var(--white,#fff)}
+.post-nav .nav-prev{margin-left:auto;text-align:right}
+.post-nav .is-disabled{border-color:var(--line,#E1E4E9);color:var(--muted,#5B6470)}
