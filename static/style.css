@@ -206,7 +206,33 @@ body.nav-open{overflow:hidden}
   radial-gradient(1200px 500px at 12% -10%, rgba(44,88,141,.55), transparent 60%),
   linear-gradient(160deg,#051C2A 0%,#0B2C42 60%,#123650 100%)}
 .hero.no-photo .hero-shade{background:none}
-.hero-inner{position:relative;max-width:760px}
+/* The hero's left edge is the page's left edge.
+   .hero-inner also carries .wrap, and .wrap is max-width:var(--wrap) with
+   margin-inline:auto. Overriding max-width to 760px left those auto margins
+   in place, so the 760px box centred itself in the VIEWPORT and the whole
+   hero sat ~140px to the right of every section below it -- on all 22 pages
+   using this hero. 760px is still what keeps a headline readable, so it moves
+   off the container and onto the text. */
+.hero-inner{position:relative;max-width:var(--wrap)}
+.hero-inner>h1,.hero-inner>.hero-title,.hero-inner>.hero-sub,.hero-inner>.hero-ctas{max-width:760px}
+
+/* A hero carrying a service card puts it on the right, full height of the
+   copy beside it. Five pages do. The card used to sit under the buttons,
+   inside that already-centred column, floating in the middle of the hero.
+   grid-row:1/-1 spans every row the copy makes, so the card grows with it. */
+.hero-inner>.hero-aside{margin-top:1.8rem;max-width:380px}
+@media(min-width:900px){
+  .hero-inner:has(>.hero-aside){display:grid;grid-template-columns:minmax(0,1fr) 360px;
+    column-gap:3.5rem;align-items:center}
+  .hero-inner:has(>.hero-aside)>:not(.hero-aside){grid-column:1}
+  /* span 50, not 1/-1: -1 is the last line of the EXPLICIT grid, and this
+     grid declares no rows, so 1/-1 spanned a single row and the card stayed
+     short while the copy beside it ran four rows deep. */
+  .hero-inner>.hero-aside{grid-column:2;grid-row:1/span 50;align-self:stretch;
+    margin-top:0;max-width:none}
+  /* the wrapper variant is a .svc-grid, which would otherwise split in two */
+  .hero-inner>.hero-aside.svc-grid{grid-template-columns:1fr}
+}
 .hero h1,.hero .hero-title{color:#fff;margin-bottom:.45em}
 .hero-title{font-family:"Open Sans",sans-serif;font-weight:800;font-size:clamp(2.1rem,6.2vw,3.6rem);
   line-height:1.08;letter-spacing:-.025em}
