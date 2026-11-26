@@ -221,6 +221,11 @@ body.nav-open{overflow:hidden}
    inside that already-centred column, floating in the middle of the hero.
    grid-row:1/-1 spans every row the copy makes, so the card grows with it. */
 .hero-inner>.hero-aside{margin-top:1.8rem;max-width:380px}
+/* The hero card carries the service photo. .svc-grid.compact hides .svc-photo,
+   which is right in a four-across row and wrong here: a full-height card with
+   two lines of copy in it is a caption and a void. */
+.hero-inner .hero-aside.svc-grid.compact .svc-photo,
+.hero-inner .hero-aside .svc-photo{display:block}
 @media(min-width:900px){
   .hero-inner:has(>.hero-aside){display:grid;grid-template-columns:minmax(0,1fr) 360px;
     column-gap:3.5rem;align-items:center}
@@ -232,6 +237,9 @@ body.nav-open{overflow:hidden}
     margin-top:0;max-width:none}
   /* the wrapper variant is a .svc-grid, which would otherwise split in two */
   .hero-inner>.hero-aside.svc-grid{grid-template-columns:1fr}
+  /* the photo takes the slack, so the card grows into a picture rather than
+     a gap. aspect-ratio has to go or it fights the flex height. */
+  .hero-inner .hero-aside .svc-photo{flex:1 1 auto;min-height:140px;aspect-ratio:auto}
 }
 .hero h1,.hero .hero-title{color:#fff;margin-bottom:.45em}
 .hero-title{font-family:"Open Sans",sans-serif;font-weight:800;font-size:clamp(2.1rem,6.2vw,3.6rem);
